@@ -4,47 +4,86 @@ import {
   clearGallery,
   showLoader,
   hideLoader,
+  toggleLoadMoreBtn,
+  showEndMessage,
+  smoothScroll,
 } from './js/render-functions.js';
 import iziToast from 'izitoast';
-import 'izitoast/dist/css/izitoast.min.css';
+import 'izitoast/dist/css/iziToast.min.css';
+
+let currentPage = 1;
+let currentQuery = '';
+let totalHits = 0;
 
 document.querySelector('.form').addEventListener('submit', async event => {
   event.preventDefault();
 
-  const query = event.target['search-text'].value.trim();
-
-  if (!query) {
+  currentQuery = event.target['search-text'].value.trim();
+  if (!currentQuery) {
     iziToast.error({
       title: 'Error',
-      message: 'Please enter a search term.',
+      message: 'Please enter a search term',
       position: 'topRight',
     });
     return;
   }
 
+  currentPage = 1;
   showLoader();
-
+  toggleLoadMoreBtn(false);
   clearGallery();
 
   try {
-    const images = await fetchImages(query);
+    const data = await fetchImages(currentQuery, currentPage);
+    totalHits = data.totalHits;
 
-    if (images.length === 0) {
+    if (data.hits.length === 0) {
       iziToast.info({
         title: 'Info',
-        message: 'Sorry, no images found.',
+        message: 'No images found for your query',
         position: 'topRight',
       });
-    } else {
-      renderGallery(images);
+      return;
+    }
+
+    renderGallery(data.hits);
+
+    if (data.hits.length < totalHits) {
+      toggleLoadMoreBtn(true);
     }
   } catch (error) {
     iziToast.error({
       title: 'Error',
-      message: 'Failed to fetch images. Please try again later.',
+      message: error.message,
       position: 'topRight',
     });
-    console.error('Error fetching images:', error);
+  } finally {
+    hideLoader();
+  }
+});
+
+document.querySelector('.load-more').addEventListener('click', async () => {
+  currentPage++;
+  showLoader();
+  toggleLoadMoreBtn(false);
+
+  try {
+    const data = await fetchImages(currentQuery, currentPage);
+    renderGallery(data.hits, true);
+    smoothScroll();
+
+    if (currentPage * 15 >= totalHits) {
+      toggleLoadMoreBtn(false);
+      showEndMessage();
+    } else {
+      toggleLoadMoreBtn(true);
+    }
+  } catch (error) {
+    iziToast.error({
+      title: 'Error',
+      message: error.message,
+      position: 'topRight',
+    });
   } finally {
     hideLoader();
   }
